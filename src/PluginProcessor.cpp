@@ -95,11 +95,17 @@ void AudioToMidiBeatAudioProcessor::processBlock(juce::AudioBuffer<float>& buffe
     if (triggers.count > 0)
         triggerFlashAtomic.store(true, std::memory_order_relaxed);
 
-    midiMessages.clear();
+    audiotomidi::MidiEngineParams midiParams;
+    midiParams.noteNumber = static_cast<int>(apvts.getRawParameterValue(paramids::noteNumber)->load());
+    midiParams.midiChannel = static_cast<int>(apvts.getRawParameterValue(paramids::midiChannel)->load());
+    midiParams.noteLengthMs = static_cast<int>(apvts.getRawParameterValue(paramids::noteLengthMs)->load());
+    midiParams.velocityMode = static_cast<int>(apvts.getRawParameterValue(paramids::velocityMode)->load()) == 0
+                                ? audiotomidi::VelocityMode::Fixed
+                                : audiotomidi::VelocityMode::Dynamic;
+    midiParams.fixedVelocity = static_cast<int>(apvts.getRawParameterValue(paramids::fixedVelocity)->load());
 
-    for (int c = 0; c < totalNumOutputChannels; ++c)
-        if (c >= totalNumInputChannels)
-            buffer.clear(c, 0, numSamples);
+    midiMessages.clear();
+    midiEngine.process(triggers, midiMessages, numSamples, midiParams);
 }
 
 juce::AudioProcessorEditor* AudioToMidiBeatAudioProcessor::createEditor() { return new AudioToMidiBeatAudioProcessorEditor(*this); }
