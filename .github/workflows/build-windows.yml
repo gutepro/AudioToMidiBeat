@@ -1,0 +1,46 @@
+name: build-windows
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Find artifacts
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path build -Recurse -Filter AudioToMidiBeatApp.exe | Select-Object -First 1
+          $vst3 = Get-ChildItem -Path build -Recurse -Filter AudioToMidiBeat.vst3 | Select-Object -First 1
+          if (-not $exe -or -not $vst3) { throw "Build artifacts not found" }
+          "APP_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VST3_PATH=$($vst3.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Package installer
+        run: |
+          iscc /DMyAppExe="${{ env.APP_EXE }}" /DMyVST3="${{ env.VST3_PATH }}" packaging\windows_installer.iss
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            build/**/AudioToMidiBeatApp.exe
+            build/**/*.vst3
+            AudioToMidiBeatInstaller.exe
