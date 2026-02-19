@@ -29,22 +29,22 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Collect build outputs
+      - name: List build outputs
+        run: dir build -Recurse
+
+      - name: Locate Standalone EXE
+        shell: powershell
+        run: |
+          $exe = Get-ChildItem -Path build -Recurse -Filter *.exe | Where-Object { $_.Name -like "*AudioToMidiBeat*" } | Select-Object -First 1
+          if (-not $exe) { throw "Standalone exe not found" }
+          Write-Host "Found EXE at $($exe.FullName)"
+          New-Item -ItemType Directory -Path dist/windows/app -Force | Out-Null
+          Copy-Item $exe.FullName dist/windows/app/
+          "APP_EXE_DIST=$((Resolve-Path (Join-Path 'dist/windows/app' $exe.Name)).Path)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Collect additional build outputs
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path dist/windows/app -Force | Out-Null
-
-          $exe = Get-ChildItem -Path build -Recurse -Filter AudioToMidiBeatApp.exe |
-            Where-Object { $_.FullName -match 'Release' } |
-            Select-Object -First 1
-          if (-not $exe) {
-            $exe = Get-ChildItem -Path build -Recurse -Filter AudioToMidiBeatApp.exe | Select-Object -First 1
-          }
-          if (-not $exe) { throw "Standalone exe not found" }
-
-          Copy-Item -Path $exe.FullName -Destination dist/windows/app/AudioToMidiBeatApp.exe -Force
-          "APP_EXE_DIST=$((Resolve-Path dist/windows/app/AudioToMidiBeatApp.exe).Path)" | Out-File -FilePath $env:GITHUB_ENV -Append
-
           $vst3 = Get-ChildItem -Path build -Recurse -Filter AudioToMidiBeat.vst3 -Directory | Select-Object -First 1
           if ($vst3) {
             New-Item -ItemType Directory -Path dist/windows/vst3 -Force | Out-Null
