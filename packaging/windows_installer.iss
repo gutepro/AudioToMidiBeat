@@ -1,15 +1,15 @@
 ; AudioToMidiBeat Windows Installer Script
 #define AppName "AudioToMidiBeat"
-#define AppVersion "1.0.0"
+#define AppVersion "0.1.0"
 #define Publisher "AudioToMidiBeat"
 #define URL "https://github.com/gutepro/AudioToMidiBeat"
 
-#ifndef MyAppExe
-  #define MyAppExe "build\Release\AudioToMidiBeatApp.exe"
+#ifndef OutputDir
+  #define OutputDir "dist\\windows"
 #endif
 
-#ifndef MyVST3
-  #define MyVST3 "build\AudioToMidiBeat_artefacts\Release\VST3\AudioToMidiBeat.vst3"
+#ifndef MyAppExe
+  #define MyAppExe "dist\\windows\\app\\AudioToMidiBeatApp.exe"
 #endif
 
 [Setup]
@@ -18,21 +18,27 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#Publisher}
 AppPublisherURL={#URL}
-DefaultDirName={autopf}\{#AppName}
+AppSupportURL={#URL}
+DefaultDirName={pf}\AudioToMidiBeat
 DefaultGroupName={#AppName}
+DisableProgramGroupPage=no
 Compression=lzma
 SolidCompression=yes
-OutputDir=.
-OutputBaseFilename=AudioToMidiBeatInstaller
+OutputDir={#OutputDir}
+OutputBaseFilename=AudioToMidiBeat-Setup
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
+UninstallDisplayIcon={app}\AudioToMidiBeatApp.exe
 
 [Files]
 Source: "{#MyAppExe}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyVST3}"; DestDir: "{cf}\VST3"; Flags: ignoreversion recursesubdirs createallsubdirs
+#ifdef MyVST3
+Source: "{#MyVST3}\*"; DestDir: "{commoncf}\VST3\AudioToMidiBeat.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+#endif
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\AudioToMidiBeatApp.exe"
+Name: "{group}\AudioToMidiBeat"; Filename: "{app}\AudioToMidiBeatApp.exe"
+Name: "{group}\Uninstall AudioToMidiBeat"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\AudioToMidiBeatApp.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\AudioToMidiBeatApp.exe"; Description: "Launch AudioToMidiBeat"; Flags: nowait postinstall skipifsilent

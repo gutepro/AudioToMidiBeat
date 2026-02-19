@@ -1,26 +1,43 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
-BUILD_DIR=${1:-"$ROOT_DIR/build"}
-OUT_DIR=${2:-"$ROOT_DIR/dist"}
+# Usage:
+#   mac_dmg.sh <path-to-app> <output-dmg-path> [optional-path-to-vst3]
 
-mkdir -p "$OUT_DIR"
-
-APP_PATH=$(find "$BUILD_DIR" -name "AudioToMidiBeatApp.app" -type d | head -n 1)
-VST3_PATH=$(find "$BUILD_DIR" -name "AudioToMidiBeat.vst3" -type d | head -n 1)
-
-if [[ -z "${APP_PATH:-}" || -z "${VST3_PATH:-}" ]]; then
-  echo "Could not find built app or VST3 in $BUILD_DIR" >&2
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $0 <path-to-app> <output-dmg-path> [optional-path-to-vst3]" >&2
   exit 1
 fi
 
-PKG_DIR=$(mktemp -d)
-cp -R "$APP_PATH" "$PKG_DIR/"
-cp -R "$VST3_PATH" "$PKG_DIR/"
+APP_PATH="$1"
+OUTPUT_DMG="$2"
+VST3_PATH="${3:-}"
 
-DMG_PATH="$OUT_DIR/AudioToMidiBeat-macOS.dmg"
-hdiutil create -volname "AudioToMidiBeat" -srcfolder "$PKG_DIR" -ov -format UDZO "$DMG_PATH"
+if [[ ! -d "$APP_PATH" || "${APP_PATH##*.}" != "app" ]]; then
+  echo "Expected a valid .app bundle, got: $APP_PATH" >&2
+  exit 1
+fi
 
-rm -rf "$PKG_DIR"
-echo "Created $DMG_PATH"
+mkdir -p "$(dirname "$OUTPUT_DMG")"
+
+STAGE_DIR="$(mktemp -d)"
+cleanup() {
+  rm -rf "$STAGE_DIR"
+}
+trap cleanup EXIT
+
+cp -R "$APP_PATH" "$STAGE_DIR/"
+ln -s /Applications "$STAGE_DIR/Applications"
+
+if [[ -n "$VST3_PATH" && -d "$VST3_PATH" ]]; then
+  cp -R "$VST3_PATH" "$STAGE_DIR/"
+fi
+
+hdiutil create \
+  -volname "AudioToMidiBeat" \
+  -srcfolder "$STAGE_DIR" \
+  -ov \
+  -format UDZO \
+  "$OUTPUT_DMG"
+
+echo "Created $OUTPUT_DMG"

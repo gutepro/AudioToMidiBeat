@@ -2,12 +2,23 @@ name: build-macos
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: macos-latest
+    env:
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -20,16 +31,61 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Package DMG
+      - name: Collect build outputs
+        shell: bash
         run: |
-          chmod +x packaging/mac_dmg.sh
-          ./packaging/mac_dmg.sh build dist
+          set -euo pipefail
+          mkdir -p dist/macos
 
-      - name: Upload artifacts
+          APP_PATH=$(find build -type d -name "AudioToMidiBeatApp.app" | head -n 1)
+          if [[ -z "${APP_PATH:-}" ]]; then
+            echo "Standalone app bundle not found" >&2
+            exit 1
+          fi
+
+          cp -R "$APP_PATH" dist/macos/
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+          VST3_PATH=$(find build -type d -name "AudioToMidiBeat.vst3" | head -n 1 || true)
+          if [[ -n "${VST3_PATH:-}" ]]; then
+            cp -R "$VST3_PATH" dist/macos/
+            echo "VST3_PATH=$VST3_PATH" >> "$GITHUB_ENV"
+          fi
+
+      - name: Optional signing placeholder
+        shell: bash
+        run: |
+          if [[ -n "${MACOS_SIGN_IDENTITY:-}" ]]; then
+            echo "Signing identity found. Add codesign + notarization steps here."
+          else
+            echo "No signing secrets found. Producing unsigned DMG."
+          fi
+
+      - name: Build DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/mac_dmg.sh
+          if [[ -n "${VST3_PATH:-}" ]]; then
+            ./packaging/mac_dmg.sh "$APP_PATH" dist/macos/AudioToMidiBeat.dmg "$VST3_PATH"
+          else
+            ./packaging/mac_dmg.sh "$APP_PATH" dist/macos/AudioToMidiBeat.dmg
+          fi
+
+      - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: macos-release
-          path: |
-            build/**/*.app
-            build/**/*.vst3
-            dist/*.dmg
+          name: AudioToMidiBeat-macOS-DMG
+          path: dist/macos/AudioToMidiBeat.dmg
+
+      - name: Upload raw macOS build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioToMidiBeat-macOS-Build
+          path: dist/macos
+
+      - name: Upload DMG to GitHub Release (optional)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/macos/AudioToMidiBeat.dmg

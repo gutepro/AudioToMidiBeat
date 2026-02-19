@@ -2,12 +2,21 @@ name: build-windows
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      WINDOWS_SIGN_CERT_B64: ${{ secrets.WINDOWS_SIGN_CERT_B64 }}
+      WINDOWS_SIGN_PASSWORD: ${{ secrets.WINDOWS_SIGN_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -20,27 +29,73 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
+      - name: Collect build outputs
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist/windows/app -Force | Out-Null
+
+          $exe = Get-ChildItem -Path build -Recurse -Filter AudioToMidiBeatApp.exe |
+            Where-Object { $_.FullName -match 'Release' } |
+            Select-Object -First 1
+          if (-not $exe) {
+            $exe = Get-ChildItem -Path build -Recurse -Filter AudioToMidiBeatApp.exe | Select-Object -First 1
+          }
+          if (-not $exe) { throw "Standalone exe not found" }
+
+          Copy-Item -Path $exe.FullName -Destination dist/windows/app/AudioToMidiBeatApp.exe -Force
+          "APP_EXE_DIST=$((Resolve-Path dist/windows/app/AudioToMidiBeatApp.exe).Path)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          $vst3 = Get-ChildItem -Path build -Recurse -Filter AudioToMidiBeat.vst3 -Directory | Select-Object -First 1
+          if ($vst3) {
+            New-Item -ItemType Directory -Path dist/windows/vst3 -Force | Out-Null
+            Copy-Item -Path $vst3.FullName -Destination dist/windows/vst3/AudioToMidiBeat.vst3 -Recurse -Force
+            "VST3_DIST=$((Resolve-Path dist/windows/vst3/AudioToMidiBeat.vst3).Path)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+
       - name: Install Inno Setup
         run: choco install innosetup -y
 
-      - name: Find artifacts
+      - name: Build installer
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Path build -Recurse -Filter AudioToMidiBeatApp.exe | Select-Object -First 1
-          $vst3 = Get-ChildItem -Path build -Recurse -Filter AudioToMidiBeat.vst3 | Select-Object -First 1
-          if (-not $exe -or -not $vst3) { throw "Build artifacts not found" }
-          "APP_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "VST3_PATH=$($vst3.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $args = @(
+            '/DOutputDir=dist\\windows',
+            "/DMyAppExe=$env:APP_EXE_DIST"
+          )
 
-      - name: Package installer
+          if ($env:VST3_DIST -and (Test-Path $env:VST3_DIST)) {
+            $args += "/DMyVST3=$env:VST3_DIST"
+          }
+
+          & iscc @args packaging\windows_installer.iss
+
+          if (-not (Test-Path dist/windows/AudioToMidiBeat-Setup.exe)) {
+            throw "Installer was not generated"
+          }
+
+      - name: Optional code signing placeholder
+        shell: pwsh
         run: |
-          iscc /DMyAppExe="${{ env.APP_EXE }}" /DMyVST3="${{ env.VST3_PATH }}" packaging\windows_installer.iss
+          if ($env:WINDOWS_SIGN_CERT_B64 -and $env:WINDOWS_SIGN_PASSWORD) {
+            Write-Host 'Signing secrets found. Add signtool integration here for signed installers.'
+          } else {
+            Write-Host 'No signing secrets found. Producing unsigned installer.'
+          }
 
-      - name: Upload artifacts
+      - name: Upload Windows installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-release
-          path: |
-            build/**/AudioToMidiBeatApp.exe
-            build/**/*.vst3
-            AudioToMidiBeatInstaller.exe
+          name: AudioToMidiBeat-Windows-Installer
+          path: dist/windows/AudioToMidiBeat-Setup.exe
+
+      - name: Upload raw Windows build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioToMidiBeat-Windows-Build
+          path: dist/windows
+
+      - name: Upload installer to GitHub Release (optional)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/windows/AudioToMidiBeat-Setup.exe

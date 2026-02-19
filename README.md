@@ -110,14 +110,29 @@ chmod +x packaging/mac_dmg.sh
 ## Installation
 
 ### Windows
-- Run `AudioToMidiBeatInstaller.exe`
-- Standalone app is installed in Program Files
-- VST3 is installed to `Common Files\\VST3`
+From GitHub Actions artifacts:
+1. Open the repository `Actions` tab.
+2. Open a successful `build-windows` run.
+3. Download artifact `AudioToMidiBeat-Windows-Installer`.
+4. Extract and run `AudioToMidiBeat-Setup.exe`.
+
+Install result:
+- Standalone app installs to `C:\Program Files\AudioToMidiBeat`
+- Start Menu shortcut is created
+- Uninstall entry is created automatically
+- VST3 installs to `C:\Program Files\Common Files\VST3\AudioToMidiBeat.vst3` when included
 
 ### macOS
-- Mount generated DMG
-- Drag `AudioToMidiBeatApp.app` to Applications
-- Copy `AudioToMidiBeat.vst3` to `/Library/Audio/Plug-Ins/VST3`
+From GitHub Actions artifacts:
+1. Open the repository `Actions` tab.
+2. Open a successful `build-macos` run.
+3. Download artifact `AudioToMidiBeat-macOS-DMG`.
+4. Open `AudioToMidiBeat.dmg`.
+5. Drag `AudioToMidiBeatApp.app` into `Applications`.
+
+Notes:
+- MVP CI currently produces unsigned packages when signing secrets are not configured.
+- Workflows include placeholders for future Windows code signing and macOS notarization.
 
 ## Standalone Usage
 
