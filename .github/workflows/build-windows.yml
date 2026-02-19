@@ -69,9 +69,13 @@ jobs:
 
           & iscc @args packaging\windows_installer.iss
 
-          if (-not (Test-Path dist/windows/AudioToMidiBeat-Setup.exe)) {
+          if (-not (Test-Path packaging/dist/windows/AudioToMidiBeat-Setup.exe)) {
             throw "Installer was not generated"
           }
+
+      - name: List packaging outputs
+        run: |
+          dir packaging\dist -Recurse
 
       - name: Optional code signing placeholder
         shell: pwsh
@@ -86,7 +90,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AudioToMidiBeat-Windows-Installer
-          path: dist/windows/AudioToMidiBeat-Setup.exe
+          path: packaging/dist/windows/AudioToMidiBeat-Setup.exe
 
       - name: Upload raw Windows build artifact
         uses: actions/upload-artifact@v4
