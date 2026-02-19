@@ -1,0 +1,12 @@
+build/
+.vscode/
+.idea/
+.DS_Store
+*.user
+*.sln
+*.vcxproj*
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+*.swp
+*.tmp
+*.log
